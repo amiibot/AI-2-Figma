@@ -10,6 +10,8 @@
 - 在 Figma 中重建画板、章节背景、标题、正文
 - 当正文高度增长时，让当前 section 增高，并把后续 section 整体下推
 
+![demo](assets/demo.gif)
+
 ## 当前适用场景
 
 当前主要服务于：

@@ -443,10 +443,100 @@ const resolveSectionGeometry = (section, index) => {
   };
 };
 
-const createArtboardFrame = (documentId, artboard) => {
+const clampNonNegative = (value, fallback) => {
+  if (!isFiniteNumber(value)) {
+    return fallback;
+  }
+  return Math.max(value, 0);
+};
+
+const getNodeHeight = (geometry) => {
+  if (!geometry) {
+    return 0;
+  }
+  if (isFiniteNumber(geometry.height)) {
+    return geometry.height;
+  }
+  if (isFiniteNumber(geometry.lineHeight)) {
+    return geometry.lineHeight;
+  }
+  return 24;
+};
+
+const deriveNodeInsets = (geometry, sectionGeometry, fallbackWidth) => {
+  const width = geometry && isFiniteNumber(geometry.width)
+    ? geometry.width
+    : fallbackWidth;
+  const left = geometry && isFiniteNumber(geometry.x)
+    ? clampNonNegative(geometry.x - sectionGeometry.x, 0)
+    : 0;
+  const right = clampNonNegative(sectionGeometry.width - left - width, 0);
+
+  return {
+    width,
+    left,
+    right
+  };
+};
+
+const deriveSectionLayoutMetrics = (section, sectionGeometry) => {
+  const titleGeometry = section.nodes && section.nodes.title ? section.nodes.title.geometry || null : null;
+  const bodyGeometry = section.nodes && section.nodes.body ? section.nodes.body.geometry || null : null;
+  const firstGeometry = titleGeometry || bodyGeometry;
+  const titleInsets = deriveNodeInsets(titleGeometry, sectionGeometry, sectionGeometry.width);
+  const bodyInsets = deriveNodeInsets(bodyGeometry, sectionGeometry, titleInsets.width || sectionGeometry.width);
+  const firstTop = firstGeometry && isFiniteNumber(firstGeometry.y)
+    ? clampNonNegative(firstGeometry.y - sectionGeometry.y, 0)
+    : 0;
+  const titleBottom = titleGeometry && isFiniteNumber(titleGeometry.y)
+    ? (titleGeometry.y - sectionGeometry.y) + getNodeHeight(titleGeometry)
+    : 0;
+  const bodyBottom = bodyGeometry && isFiniteNumber(bodyGeometry.y)
+    ? (bodyGeometry.y - sectionGeometry.y) + getNodeHeight(bodyGeometry)
+    : 0;
+  const contentBottom = Math.max(titleBottom, bodyBottom, 0);
+  const titleBodyGap = titleGeometry && bodyGeometry && isFiniteNumber(bodyGeometry.y)
+    ? clampNonNegative((bodyGeometry.y - sectionGeometry.y) - titleBottom, 0)
+    : 0;
+  const bottomPadding = clampNonNegative(sectionGeometry.height - contentBottom, 0);
+
+  return {
+    paddingTop: firstTop,
+    paddingBottom: bottomPadding,
+    titleBodyGap,
+    titleInsets,
+    bodyInsets
+  };
+};
+
+const deriveArtboardLayoutMetrics = (sections, artboard) => {
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return { paddingTop: 0, paddingBottom: 0 };
+  }
+
+  const firstGeometry = resolveSectionGeometry(sections[0], 0);
+  const lastBottom = sections.reduce((maxBottom, section, index) => {
+    const geometry = resolveSectionGeometry(section, index);
+    return Math.max(maxBottom, geometry.y + geometry.height);
+  }, artboard.y);
+
+  return {
+    paddingTop: clampNonNegative(firstGeometry.y - artboard.y, 0),
+    paddingBottom: clampNonNegative((artboard.y + artboard.height) - lastBottom, 0)
+  };
+};
+
+const createArtboardFrame = (documentId, artboard, metrics) => {
   const frame = figma.createFrame();
   frame.name = 'Import/' + documentId;
-  frame.layoutMode = 'NONE';
+  frame.layoutMode = 'VERTICAL';
+  frame.primaryAxisSizingMode = 'AUTO';
+  frame.counterAxisSizingMode = 'FIXED';
+  frame.itemSpacing = 0;
+  frame.paddingTop = metrics.paddingTop;
+  frame.paddingRight = 0;
+  frame.paddingBottom = metrics.paddingBottom;
+  frame.paddingLeft = 0;
   frame.resizeWithoutConstraints(artboard.width, artboard.height);
   frame.x = 0;
   frame.y = 0;
@@ -458,28 +548,55 @@ const createArtboardFrame = (documentId, artboard) => {
   return frame;
 };
 
-const resolveParent = (documentId, insertMode, artboard) => {
+const resolveParent = (documentId, insertMode, artboard, metrics) => {
   if (insertMode === 'current-page') {
-    const artboardFrame = createArtboardFrame(documentId, artboard);
+    const artboardFrame = createArtboardFrame(documentId, artboard, metrics);
     figma.currentPage.appendChild(artboardFrame);
     return artboardFrame;
   }
 
   const page = figma.createPage();
   page.name = 'Rebuilt/' + documentId;
-  const artboardFrame = createArtboardFrame(documentId, artboard);
+  const artboardFrame = createArtboardFrame(documentId, artboard, metrics);
   page.appendChild(artboardFrame);
   figma.currentPage = page;
   return artboardFrame;
 };
 
-const createSectionFrame = (section, geometry, artboard, yOffset) => {
+const createSectionSlot = (sectionId, artboard, geometry, topGap) => {
+  const leftPadding = clampNonNegative(geometry.x - artboard.x, 0);
+  const rightPadding = clampNonNegative(artboard.width - leftPadding - geometry.width, 0);
+  const frame = figma.createFrame();
+  frame.name = 'Section Slot/' + sectionId;
+  frame.layoutMode = 'HORIZONTAL';
+  frame.primaryAxisSizingMode = 'FIXED';
+  frame.counterAxisSizingMode = 'AUTO';
+  frame.itemSpacing = 0;
+  frame.paddingTop = topGap;
+  frame.paddingRight = rightPadding;
+  frame.paddingBottom = 0;
+  frame.paddingLeft = leftPadding;
+  frame.resizeWithoutConstraints(artboard.width, 1);
+  frame.fills = [];
+  frame.strokes = [];
+  frame.clipsContent = false;
+  setPluginDataIfAvailable(frame, 'noticeStruct.sectionId', sectionId);
+  setPluginDataIfAvailable(frame, 'noticeStruct.nodeRole', 'section-slot');
+  return frame;
+};
+
+const createSectionFrame = (section, geometry, metrics) => {
   const frame = figma.createFrame();
   frame.name = 'Section/' + section.id;
-  frame.layoutMode = 'NONE';
+  frame.layoutMode = 'VERTICAL';
+  frame.primaryAxisSizingMode = 'AUTO';
+  frame.counterAxisSizingMode = 'FIXED';
+  frame.itemSpacing = metrics.titleBodyGap;
+  frame.paddingTop = metrics.paddingTop;
+  frame.paddingRight = 0;
+  frame.paddingBottom = metrics.paddingBottom;
+  frame.paddingLeft = 0;
   frame.resizeWithoutConstraints(geometry.width, geometry.height);
-  frame.x = geometry.x - artboard.x;
-  frame.y = geometry.y - artboard.y + yOffset;
   frame.clipsContent = false;
   frame.fills = [];
   frame.strokes = [];
@@ -501,6 +618,26 @@ const createSectionFrame = (section, geometry, artboard, yOffset) => {
   return frame;
 };
 
+const createTextSlot = (name, sectionId, sectionWidth, insets) => {
+  const frame = figma.createFrame();
+  frame.name = name;
+  frame.layoutMode = 'HORIZONTAL';
+  frame.primaryAxisSizingMode = 'FIXED';
+  frame.counterAxisSizingMode = 'AUTO';
+  frame.itemSpacing = 0;
+  frame.paddingTop = 0;
+  frame.paddingRight = insets.right;
+  frame.paddingBottom = 0;
+  frame.paddingLeft = insets.left;
+  frame.resizeWithoutConstraints(sectionWidth, 1);
+  frame.fills = [];
+  frame.strokes = [];
+  frame.clipsContent = false;
+  setPluginDataIfAvailable(frame, 'noticeStruct.sectionId', sectionId);
+  setPluginDataIfAvailable(frame, 'noticeStruct.nodeRole', 'text-slot');
+  return frame;
+};
+
 const applyTextMetrics = (node, style, geometry) => {
   if (style && isFiniteNumber(style.fontSize)) {
     node.fontSize = style.fontSize;
@@ -516,21 +653,12 @@ const applyTextMetrics = (node, style, geometry) => {
   node.textAutoResize = 'NONE';
 
   if (geometry && isFiniteNumber(geometry.width) && geometry.width > 0) {
-    const height = isFiniteNumber(geometry.height) && geometry.height > 0
-      ? geometry.height
-      : (isFiniteNumber(geometry.lineHeight) ? geometry.lineHeight : 24);
+    const height = getNodeHeight(geometry);
     node.resize(geometry.width, height);
     node.textAutoResize = 'HEIGHT';
   } else {
     node.textAutoResize = 'WIDTH_AND_HEIGHT';
   }
-};
-
-const positionNodeInSection = (node, geometry, sectionGeometry) => {
-  const localX = geometry && isFiniteNumber(geometry.x) ? geometry.x - sectionGeometry.x : 0;
-  const localY = geometry && isFiniteNumber(geometry.y) ? geometry.y - sectionGeometry.y : 0;
-  node.x = localX;
-  node.y = localY;
 };
 
 const createTextNode = async (name, textRole, sectionId, content, style, geometry) => {
@@ -552,60 +680,16 @@ const createTextNode = async (name, textRole, sectionId, content, style, geometr
   return node;
 };
 
-const originalContentBottom = (section, sectionGeometry) => {
-  const geometries = [];
-
-  if (section.nodes && section.nodes.title && section.nodes.title.geometry) {
-    geometries.push(section.nodes.title.geometry);
-  }
-  if (section.nodes && section.nodes.body && section.nodes.body.geometry) {
-    geometries.push(section.nodes.body.geometry);
-  }
-
-  let bottom = 0;
-  for (const geometry of geometries) {
-    const localY = isFiniteNumber(geometry.y) ? geometry.y - sectionGeometry.y : 0;
-    const height = isFiniteNumber(geometry.height)
-      ? geometry.height
-      : (isFiniteNumber(geometry.lineHeight) ? geometry.lineHeight : 24);
-    bottom = Math.max(bottom, localY + height);
-  }
-
-  return bottom;
-};
-
-const resolveBottomPadding = (section, sectionGeometry) => {
-  const contentBottom = originalContentBottom(section, sectionGeometry);
-  if (contentBottom <= 0) {
-    return 32;
-  }
-  return Math.max(sectionGeometry.height - contentBottom, 24);
-};
-
-const fitSectionHeightToContent = (sectionFrame, section, sectionGeometry) => {
-  const bottomPadding = resolveBottomPadding(section, sectionGeometry);
-  let contentBottom = 0;
-
-  for (const child of sectionFrame.children) {
-    contentBottom = Math.max(contentBottom, child.y + child.height);
-  }
-
-  const nextHeight = Math.max(sectionGeometry.height, contentBottom + bottomPadding);
-  if (nextHeight !== sectionFrame.height) {
-    sectionFrame.resizeWithoutConstraints(sectionFrame.width, nextHeight);
-  }
-
-  return nextHeight - sectionGeometry.height;
-};
-
-const buildSection = async (section, index, artboard, yOffset) => {
+const buildSection = async (section, index) => {
   const sectionGeometry = resolveSectionGeometry(section, index);
-  const sectionFrame = createSectionFrame(section, sectionGeometry, artboard, yOffset);
+  const metrics = deriveSectionLayoutMetrics(section, sectionGeometry);
+  const sectionFrame = createSectionFrame(section, sectionGeometry, metrics);
 
   if (section.nodes && section.nodes.title) {
     const titleContent = section.content && typeof section.content.titleText === 'string'
       ? section.content.titleText
       : '';
+    const titleSlot = createTextSlot('Title Slot', section.id, sectionGeometry.width, metrics.titleInsets);
     const titleNode = await createTextNode(
       'Title',
       'title',
@@ -614,13 +698,14 @@ const buildSection = async (section, index, artboard, yOffset) => {
       section.nodes.title.style || {},
       section.nodes.title.geometry || null
     );
-    sectionFrame.appendChild(titleNode);
-    positionNodeInSection(titleNode, section.nodes.title.geometry || null, sectionGeometry);
+    titleSlot.appendChild(titleNode);
+    sectionFrame.appendChild(titleSlot);
   }
 
   const bodyContent = section.content && typeof section.content.bodyText === 'string' && section.content.bodyText.trim()
     ? section.content.bodyText
     : '[body] ' + section.id;
+  const bodySlot = createTextSlot('Body Slot', section.id, sectionGeometry.width, metrics.bodyInsets);
   const bodyNode = await createTextNode(
     'Body',
     'body',
@@ -629,12 +714,13 @@ const buildSection = async (section, index, artboard, yOffset) => {
     section.nodes.body.style || {},
     section.nodes.body.geometry || null
   );
-  sectionFrame.appendChild(bodyNode);
-  positionNodeInSection(bodyNode, section.nodes.body.geometry || null, sectionGeometry);
+  bodySlot.appendChild(bodyNode);
+  sectionFrame.appendChild(bodySlot);
 
   return {
     node: sectionFrame,
-    heightDelta: fitSectionHeightToContent(sectionFrame, section, sectionGeometry)
+    geometry: sectionGeometry,
+    originalHeight: sectionGeometry.height
   };
 };
 
@@ -657,11 +743,11 @@ const rebuildSections = async (request) => {
     ? request.options.insertMode
     : 'new-page';
   const artboard = resolveArtboard(state.structure, selectedSections);
-  const parent = resolveParent(documentId, insertMode, artboard);
+  const artboardMetrics = deriveArtboardLayoutMetrics(selectedSections, artboard);
+  const parent = resolveParent(documentId, insertMode, artboard, artboardMetrics);
   const failed = [];
   const createdNodeIds = [parent.id];
-  let runningYOffset = 0;
-  let maxBottom = parent.height;
+  let previousGeometry = null;
 
   for (let index = 0; index < selectedSections.length; index += 1) {
     const section = selectedSections[index];
@@ -674,11 +760,20 @@ const rebuildSections = async (request) => {
     });
 
     try {
-      const result = await buildSection(section, index, artboard, runningYOffset);
-      parent.appendChild(result.node);
+      const result = await buildSection(section, index);
+      const topGap = previousGeometry
+        ? clampNonNegative(result.geometry.y - (previousGeometry.y + previousGeometry.height), 0)
+        : 0;
+      const slot = createSectionSlot(section.id, artboard, result.geometry, topGap);
+      slot.appendChild(result.node);
+      parent.appendChild(slot);
       createdNodeIds.push(result.node.id);
-      runningYOffset += result.heightDelta;
-      maxBottom = Math.max(maxBottom, result.node.y + result.node.height);
+      previousGeometry = {
+        x: result.geometry.x,
+        y: result.geometry.y,
+        width: result.geometry.width,
+        height: result.node.height
+      };
     } catch (error) {
       failed.push({
         sectionId: section.id,
@@ -686,10 +781,6 @@ const rebuildSections = async (request) => {
         message: error instanceof Error ? error.message : String(error)
       });
     }
-  }
-
-  if (maxBottom > parent.height) {
-    parent.resizeWithoutConstraints(parent.width, maxBottom);
   }
 
   const createdNodes = await Promise.all(
