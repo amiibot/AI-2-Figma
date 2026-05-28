@@ -473,13 +473,13 @@ const resolveParent = (documentId, insertMode, artboard) => {
   return artboardFrame;
 };
 
-const createSectionFrame = (section, geometry, artboard) => {
+const createSectionFrame = (section, geometry, artboard, yOffset) => {
   const frame = figma.createFrame();
   frame.name = 'Section/' + section.id;
   frame.layoutMode = 'NONE';
   frame.resizeWithoutConstraints(geometry.width, geometry.height);
   frame.x = geometry.x - artboard.x;
-  frame.y = geometry.y - artboard.y;
+  frame.y = geometry.y - artboard.y + yOffset;
   frame.clipsContent = false;
   frame.fills = [];
   frame.strokes = [];
@@ -552,9 +552,55 @@ const createTextNode = async (name, textRole, sectionId, content, style, geometr
   return node;
 };
 
-const buildSection = async (section, index, artboard) => {
+const originalContentBottom = (section, sectionGeometry) => {
+  const geometries = [];
+
+  if (section.nodes && section.nodes.title && section.nodes.title.geometry) {
+    geometries.push(section.nodes.title.geometry);
+  }
+  if (section.nodes && section.nodes.body && section.nodes.body.geometry) {
+    geometries.push(section.nodes.body.geometry);
+  }
+
+  let bottom = 0;
+  for (const geometry of geometries) {
+    const localY = isFiniteNumber(geometry.y) ? geometry.y - sectionGeometry.y : 0;
+    const height = isFiniteNumber(geometry.height)
+      ? geometry.height
+      : (isFiniteNumber(geometry.lineHeight) ? geometry.lineHeight : 24);
+    bottom = Math.max(bottom, localY + height);
+  }
+
+  return bottom;
+};
+
+const resolveBottomPadding = (section, sectionGeometry) => {
+  const contentBottom = originalContentBottom(section, sectionGeometry);
+  if (contentBottom <= 0) {
+    return 32;
+  }
+  return Math.max(sectionGeometry.height - contentBottom, 24);
+};
+
+const fitSectionHeightToContent = (sectionFrame, section, sectionGeometry) => {
+  const bottomPadding = resolveBottomPadding(section, sectionGeometry);
+  let contentBottom = 0;
+
+  for (const child of sectionFrame.children) {
+    contentBottom = Math.max(contentBottom, child.y + child.height);
+  }
+
+  const nextHeight = Math.max(sectionGeometry.height, contentBottom + bottomPadding);
+  if (nextHeight !== sectionFrame.height) {
+    sectionFrame.resizeWithoutConstraints(sectionFrame.width, nextHeight);
+  }
+
+  return nextHeight - sectionGeometry.height;
+};
+
+const buildSection = async (section, index, artboard, yOffset) => {
   const sectionGeometry = resolveSectionGeometry(section, index);
-  const sectionFrame = createSectionFrame(section, sectionGeometry, artboard);
+  const sectionFrame = createSectionFrame(section, sectionGeometry, artboard, yOffset);
 
   if (section.nodes && section.nodes.title) {
     const titleContent = section.content && typeof section.content.titleText === 'string'
@@ -586,7 +632,10 @@ const buildSection = async (section, index, artboard) => {
   sectionFrame.appendChild(bodyNode);
   positionNodeInSection(bodyNode, section.nodes.body.geometry || null, sectionGeometry);
 
-  return sectionFrame;
+  return {
+    node: sectionFrame,
+    heightDelta: fitSectionHeightToContent(sectionFrame, section, sectionGeometry)
+  };
 };
 
 const rebuildSections = async (request) => {
@@ -611,6 +660,8 @@ const rebuildSections = async (request) => {
   const parent = resolveParent(documentId, insertMode, artboard);
   const failed = [];
   const createdNodeIds = [parent.id];
+  let runningYOffset = 0;
+  let maxBottom = parent.height;
 
   for (let index = 0; index < selectedSections.length; index += 1) {
     const section = selectedSections[index];
@@ -623,9 +674,11 @@ const rebuildSections = async (request) => {
     });
 
     try {
-      const node = await buildSection(section, index, artboard);
-      parent.appendChild(node);
-      createdNodeIds.push(node.id);
+      const result = await buildSection(section, index, artboard, runningYOffset);
+      parent.appendChild(result.node);
+      createdNodeIds.push(result.node.id);
+      runningYOffset += result.heightDelta;
+      maxBottom = Math.max(maxBottom, result.node.y + result.node.height);
     } catch (error) {
       failed.push({
         sectionId: section.id,
@@ -633,6 +686,10 @@ const rebuildSections = async (request) => {
         message: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  if (maxBottom > parent.height) {
+    parent.resizeWithoutConstraints(parent.width, maxBottom);
   }
 
   const createdNodes = await Promise.all(
