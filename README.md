@@ -1,4 +1,4 @@
-# Notice Structure Rebuilder
+# AI-2-Figma
 
 一个独立的 Figma 插件实验项目，用来把 Illustrator 导出的公告类 SVG 先抽成结构数据，再在 Figma 中按章节重建。
 
