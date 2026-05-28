@@ -1,0 +1,62 @@
+{
+  "documentId": "test-board",
+  "summary": {
+    "totalSections": 2,
+    "ready": 2,
+    "needsReview": 0,
+    "blocked": 0
+  },
+  "issues": [],
+  "sections": [
+    {
+      "sectionId": "notice_001",
+      "sourceGroup": "section_notice_001",
+      "status": "ready",
+      "matchedNodes": {
+        "background": {
+          "sourceName": "background",
+          "sourceNodeId": "background-2",
+          "tag": "rect"
+        },
+        "title": {
+          "sourceName": "title",
+          "sourceNodeId": "title-2",
+          "tag": "text",
+          "textPreview": "这是第一个标题"
+        },
+        "body": {
+          "sourceName": "body",
+          "sourceNodeId": "body-2",
+          "tag": "text",
+          "textPreview": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少事，滚滚长江东逝水，浪花\n淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付笑谈中。\n滚滚长江东逝水"
+        }
+      },
+      "issues": []
+    },
+    {
+      "sectionId": "notice_002",
+      "sourceGroup": "section_notice_002",
+      "status": "ready",
+      "matchedNodes": {
+        "background": {
+          "sourceName": "background",
+          "sourceNodeId": "background",
+          "tag": "rect"
+        },
+        "title": {
+          "sourceName": "title",
+          "sourceNodeId": "title",
+          "tag": "text",
+          "textPreview": "这是第二个标题"
+        },
+        "body": {
+          "sourceName": "body",
+          "sourceNodeId": "body",
+          "tag": "text",
+          "textPreview": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少\n事，滚滚长江东逝水，浪花淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付\n笑谈中。\n是非成败转头"
+        }
+      },
+      "issues": []
+    }
+  ]
+}

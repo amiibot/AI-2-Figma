@@ -1,0 +1,699 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notice Structure Rebuilder</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font: 12px/1.5 Inter, system-ui, sans-serif;
+        color: #1f2328;
+        background: #ffffff;
+      }
+
+      h1,
+      h2 {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 14px;
+      }
+
+      h2 {
+        font-size: 12px;
+      }
+
+      p {
+        margin: 0;
+        color: #57606a;
+      }
+
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+
+      .card {
+        border: 1px solid #d0d7de;
+        border-radius: 8px;
+        padding: 12px;
+        background: #f6f8fa;
+      }
+
+      .card.stack {
+        gap: 10px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .row.wrap {
+        flex-wrap: wrap;
+      }
+
+      textarea,
+      select,
+      button {
+        font: inherit;
+      }
+
+      textarea,
+      select {
+        width: 100%;
+        border: 1px solid #d0d7de;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #fff;
+        box-sizing: border-box;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      .primary {
+        background: #0d99ff;
+        color: white;
+      }
+
+      .secondary {
+        background: #eaeef2;
+        color: #1f2328;
+      }
+
+      .section-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .section-item {
+        border: 1px solid #d8dee4;
+        border-radius: 8px;
+        background: #fff;
+        padding: 10px;
+      }
+
+      .section-meta {
+        color: #57606a;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #ddf4ff;
+        color: #0969da;
+        font-size: 11px;
+      }
+
+      .pill.warn {
+        background: #fff8c5;
+        color: #9a6700;
+      }
+
+      pre {
+        margin: 0;
+        padding: 12px;
+        border-radius: 8px;
+        background: #0d1117;
+        color: #e6edf3;
+        min-height: 120px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      small {
+        color: #57606a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stack">
+      <div>
+        <h1>公告结构重建</h1>
+        <p>先消费 structure.json，在 Figma 中重建最小 section 拓扑。</p>
+      </div>
+
+      <div class="card stack">
+        <div id="bootstrap">正在连接插件主线程…</div>
+        <small id="summary">还没有加载结构数据。</small>
+      </div>
+
+      <div class="card stack">
+        <div class="row wrap">
+          <button id="load-sample" class="secondary">载入示例数据</button>
+          <button id="apply-structure" class="secondary">应用 JSON</button>
+          <button id="cancel" class="secondary">关闭</button>
+        </div>
+        <label>
+          <h2>structure.json</h2>
+          <textarea id="structure-input"></textarea>
+        </label>
+        <label>
+          <h2>report.json（可选）</h2>
+          <textarea id="report-input"></textarea>
+        </label>
+      </div>
+
+      <div class="card stack">
+        <div class="row wrap">
+          <label style="flex: 1 1 180px;">
+            <h2>插入位置</h2>
+            <select id="insert-mode">
+              <option value="new-page">新建页面</option>
+              <option value="current-page">当前页面</option>
+            </select>
+          </label>
+          <div class="row" style="margin-top: 18px;">
+            <button id="select-all" class="secondary">全选</button>
+            <button id="clear-all" class="secondary">清空</button>
+          </div>
+        </div>
+        <div id="section-list" class="section-list"></div>
+        <button id="rebuild" class="primary">重建选中章节</button>
+      </div>
+
+      <pre id="output">等待操作…</pre>
+    </div>
+
+    <script>
+      const SAMPLE_STRUCTURE = {
+        "documentId": "test-board",
+        "version": 1,
+        "sourceFormat": "svg",
+        "sections": [
+          {
+            "id": "notice_001",
+            "sourceGroup": "section_notice_001",
+            "order": 1,
+            "layout": {
+              "kind": "text-in-background-block",
+              "responsive": true,
+              "fixedWidth": true,
+              "backgroundStrategy": "auto",
+              "contentDirection": "vertical",
+              "width": 1005.63
+            },
+            "frame": {
+              "x": 86.68,
+              "y": 212.43,
+              "width": 1005.63,
+              "height": 530.99,
+              "rx": 50,
+              "ry": 50
+            },
+            "nodes": {
+              "background": {
+                "sourceName": "background",
+                "role": "background",
+                "required": true,
+                "geometry": {
+                  "x": 86.68,
+                  "y": 212.43,
+                  "width": 1005.63,
+                  "height": 530.99,
+                  "rx": 50,
+                  "ry": 50
+                },
+                "style": {
+                  "fill": {
+                    "type": "solid",
+                    "color": "#FFFFFF"
+                  },
+                  "stroke": {
+                    "color": "#000000",
+                    "weight": 1
+                  }
+                }
+              },
+              "title": {
+                "sourceName": "title",
+                "role": "text",
+                "textRole": "title",
+                "required": false,
+                "geometry": {
+                  "x": 181.29,
+                  "baselineY": 287.54,
+                  "y": 263.54,
+                  "fontSize": 24,
+                  "lineHeight": 28.8,
+                  "lineCount": 1,
+                  "height": 28.8,
+                  "width": 816.4100000000001
+                },
+                "style": {
+                  "fontSize": 24,
+                  "fontFamily": "MicrosoftYaHeiLight, 'Microsoft YaHei'"
+                }
+              },
+              "body": {
+                "sourceName": "body",
+                "role": "text",
+                "textRole": "body",
+                "required": true,
+                "geometry": {
+                  "x": 183.56,
+                  "baselineY": 394.82,
+                  "y": 376.82,
+                  "fontSize": 18,
+                  "lineHeight": 21.6,
+                  "lineCount": 12,
+                  "height": 259.2,
+                  "width": 811.87
+                },
+                "style": {
+                  "fontSize": 18,
+                  "fontFamily": "AdobeSongStd-Light-GBpc-EUC-H, 'Adobe Song Std'",
+                  "fontWeight": "300"
+                }
+              }
+            },
+            "content": {
+              "titleText": "这是第一个标题",
+              "bodyText": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少事，滚滚长江东逝水，浪花\n淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付笑谈中。\n滚滚长江东逝水，浪花淘尽英雄。是非成败转头空，青山依旧在，几度夕阳红。白发渔樵江渚上，惯看\n秋月春风。一壶浊酒喜相逢，古今多少事，都付笑谈中。\n是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少事，滚滚长江东逝水，浪花\n淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付笑谈中。\n滚滚长江东逝水，浪花淘尽英雄。是非成败转头空，青山依旧在，秋月春风。一壶浊酒喜相逢，古今多\n少事，都付笑谈中。\n是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少事，滚滚长江东逝水，浪花\n淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付笑谈中。\n滚滚长江东逝水，浪花淘尽英雄。是非成败转头空，青山依旧在，几度夕阳红。白发渔樵江渚上，惯看\n秋月春风。一壶浊酒喜相逢，古今多少事，都付笑。"
+            }
+          },
+          {
+            "id": "notice_002",
+            "sourceGroup": "section_notice_002",
+            "order": 2,
+            "layout": {
+              "kind": "text-in-background-block",
+              "responsive": true,
+              "fixedWidth": true,
+              "backgroundStrategy": "auto",
+              "contentDirection": "vertical",
+              "width": 964.71
+            },
+            "frame": {
+              "x": 107.14,
+              "y": 840.34,
+              "width": 964.71,
+              "height": 385.4
+            },
+            "nodes": {
+              "background": {
+                "sourceName": "background",
+                "role": "background",
+                "required": true,
+                "geometry": {
+                  "x": 107.14,
+                  "y": 840.34,
+                  "width": 964.71,
+                  "height": 385.4
+                },
+                "style": {
+                  "fill": {
+                    "type": "linear",
+                    "gradientRef": "_未命名的渐变_18",
+                    "x1": 107.14,
+                    "y1": 1033.04,
+                    "x2": 1071.86,
+                    "y2": 1033.04,
+                    "stops": [
+                      {
+                        "offset": "0",
+                        "color": "#7F47DD"
+                      },
+                      {
+                        "offset": ".52",
+                        "color": "#FBAE17"
+                      },
+                      {
+                        "offset": "1",
+                        "color": "#FBAE17"
+                      }
+                    ]
+                  },
+                  "stroke": {
+                    "color": "#000000",
+                    "weight": 1
+                  }
+                }
+              },
+              "title": {
+                "sourceName": "title",
+                "role": "text",
+                "textRole": "title",
+                "required": false,
+                "geometry": {
+                  "x": 184.09,
+                  "baselineY": 893.13,
+                  "y": 869.13,
+                  "fontSize": 24,
+                  "lineHeight": 28.8,
+                  "lineCount": 1,
+                  "height": 28.8,
+                  "width": 810.8100000000001
+                },
+                "style": {
+                  "fill": {
+                    "type": "solid",
+                    "color": "#FFFFFF"
+                  },
+                  "fontSize": 24,
+                  "fontFamily": "MicrosoftYaHeiLight, 'Microsoft YaHei'"
+                }
+              },
+              "body": {
+                "sourceName": "body",
+                "role": "text",
+                "textRole": "body",
+                "required": true,
+                "geometry": {
+                  "x": 183.56,
+                  "baselineY": 944.11,
+                  "y": 920.11,
+                  "fontSize": 24,
+                  "lineHeight": 28.8,
+                  "lineCount": 9,
+                  "height": 259.2,
+                  "width": 811.87
+                },
+                "style": {
+                  "fill": {
+                    "type": "solid",
+                    "color": "#FFFFFF"
+                  },
+                  "fontSize": 24,
+                  "fontFamily": "MicrosoftYaHeiLight, 'Microsoft YaHei'"
+                }
+              }
+            },
+            "content": {
+              "titleText": "这是第二个标题",
+              "bodyText": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少\n事，滚滚长江东逝水，浪花淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付\n笑谈中。\n是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少\n事，滚滚长江东逝水，浪花淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付\n笑谈中。\n是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少\n事，滚滚长江东逝水，浪花淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付\n笑谈中。"
+            }
+          }
+        ],
+        "artboard": {
+          "x": 0,
+          "y": 0,
+          "width": 1179,
+          "height": 2556
+        }
+      };
+
+      const SAMPLE_REPORT = {
+        "documentId": "test-board",
+        "summary": { "totalSections": 2, "ready": 2, "needsReview": 0, "blocked": 0 },
+        "issues": [],
+        "sections": [
+          {
+            "sectionId": "notice_001",
+            "sourceGroup": "section_notice_001",
+            "status": "ready",
+            "matchedNodes": {
+              "background": { "sourceName": "background", "sourceNodeId": "background-2", "tag": "rect" },
+              "title": { "sourceName": "title", "sourceNodeId": "title-2", "tag": "text", "textPreview": "这是第一个标题" },
+              "body": { "sourceName": "body", "sourceNodeId": "body-2", "tag": "text", "textPreview": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少事，滚滚长江东逝水，浪花\n淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付笑谈中。\n滚滚长江东逝水" }
+            },
+            "issues": []
+          },
+          {
+            "sectionId": "notice_002",
+            "sourceGroup": "section_notice_002",
+            "status": "ready",
+            "matchedNodes": {
+              "background": { "sourceName": "background", "sourceNodeId": "background", "tag": "rect" },
+              "title": { "sourceName": "title", "sourceNodeId": "title", "tag": "text", "textPreview": "这是第二个标题" },
+              "body": { "sourceName": "body", "sourceNodeId": "body", "tag": "text", "textPreview": "是非成败转头空，青山依旧在，惯看秋月春风。一壶浊酒喜相逢，古今多少\n事，滚滚长江东逝水，浪花淘尽英雄。 几度夕阳红。白发渔樵江渚上，都付\n笑谈中。\n是非成败转头" }
+            },
+            "issues": []
+          }
+        ]
+      };
+
+      const state = {
+        page: null,
+        structure: null,
+        report: null,
+        selectedSectionIds: new Set(),
+        busy: false
+      };
+
+      const bootstrap = document.getElementById('bootstrap');
+      const summary = document.getElementById('summary');
+      const structureInput = document.getElementById('structure-input');
+      const reportInput = document.getElementById('report-input');
+      const sectionList = document.getElementById('section-list');
+      const output = document.getElementById('output');
+      const insertMode = document.getElementById('insert-mode');
+      const loadSampleButton = document.getElementById('load-sample');
+      const applyStructureButton = document.getElementById('apply-structure');
+      const rebuildButton = document.getElementById('rebuild');
+      const cancelButton = document.getElementById('cancel');
+      const selectAllButton = document.getElementById('select-all');
+      const clearAllButton = document.getElementById('clear-all');
+
+      const setBusy = (busy) => {
+        state.busy = busy;
+        const disabled = !state.structure || state.selectedSectionIds.size === 0 || busy;
+        rebuildButton.disabled = disabled;
+        applyStructureButton.disabled = busy;
+        loadSampleButton.disabled = busy;
+        cancelButton.disabled = busy;
+        selectAllButton.disabled = !state.structure || busy;
+        clearAllButton.disabled = !state.structure || busy;
+        structureInput.disabled = busy;
+        reportInput.disabled = busy;
+        insertMode.disabled = busy;
+      };
+
+      const getReportSection = (sectionId) => {
+        if (!state.report || !Array.isArray(state.report.sections)) {
+          return null;
+        }
+        return state.report.sections.find((section) => section.sectionId === sectionId) || null;
+      };
+
+      const renderSummary = () => {
+        if (!state.structure) {
+          summary.textContent = '还没有加载结构数据。';
+          return;
+        }
+
+        const total = state.structure.sections.length;
+        const selected = state.selectedSectionIds.size;
+        const reportSummary = state.report ? state.report.summary : null;
+        const reportText = reportSummary
+          ? `，ready ${reportSummary.ready}，needsReview ${reportSummary.needsReview}，blocked ${reportSummary.blocked}`
+          : '';
+        const artboardText = state.structure.artboard
+          ? `，artboard ${state.structure.artboard.width} × ${state.structure.artboard.height}`
+          : '';
+        summary.textContent = `documentId: ${state.structure.documentId}，共 ${total} 个 sections，已选 ${selected} 个${artboardText}${reportText}。`;
+      };
+
+      const renderSections = () => {
+        if (!state.structure) {
+          sectionList.innerHTML = '<small>请先载入 structure.json。</small>';
+          setBusy(state.busy);
+          return;
+        }
+
+        sectionList.innerHTML = state.structure.sections
+          .map((section) => {
+            const reportSection = getReportSection(section.id);
+            const checked = state.selectedSectionIds.has(section.id) ? 'checked' : '';
+            const status = reportSection && reportSection.status ? reportSection.status : 'unknown';
+            const statusClass = status === 'ready' ? 'pill' : 'pill warn';
+            const matchedNodes = reportSection && reportSection.matchedNodes ? reportSection.matchedNodes : {};
+            const previewTitle = matchedNodes.title && matchedNodes.title.textPreview ? matchedNodes.title.textPreview : '';
+            const previewBody = matchedNodes.body && matchedNodes.body.textPreview ? matchedNodes.body.textPreview : '';
+            const frame = section.frame || null;
+            const frameText = frame
+              ? ` · frame (${frame.x}, ${frame.y}) ${frame.width} × ${frame.height}`
+              : '';
+            return `
+              <label class="section-item">
+                <div class="row wrap" style="justify-content: space-between; align-items: flex-start;">
+                  <div class="row" style="align-items: flex-start;">
+                    <input type="checkbox" data-section-id="${section.id}" ${checked} />
+                    <div>
+                      <div><strong>${section.id}</strong></div>
+                      <div class="section-meta">${section.sourceGroup} · width ${section.layout.width || 'default'}${frameText}</div>
+                    </div>
+                  </div>
+                  <span class="${statusClass}">${status}</span>
+                </div>
+                <div class="section-meta">nodes: ${Object.keys(section.nodes).join(', ')}</div>
+                ${previewTitle ? `<div class="section-meta">title: ${previewTitle}</div>` : ''}
+                ${previewBody ? `<div class="section-meta">body: ${previewBody}</div>` : ''}
+              </label>
+            `;
+          })
+          .join('');
+
+        sectionList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+          checkbox.addEventListener('change', (event) => {
+            const sectionId = event.target.getAttribute('data-section-id');
+            if (event.target.checked) {
+              state.selectedSectionIds.add(sectionId);
+            } else {
+              state.selectedSectionIds.delete(sectionId);
+            }
+            renderSummary();
+            setBusy(state.busy);
+          });
+        });
+
+        renderSummary();
+        setBusy(state.busy);
+      };
+
+      const applyLoadedData = () => {
+        let structure;
+        let report = null;
+
+        try {
+          structure = JSON.parse(structureInput.value);
+        } catch (error) {
+          output.textContent = `structure.json 解析失败：${error.message}`;
+          return;
+        }
+
+        const rawReport = reportInput.value.trim();
+        if (rawReport) {
+          try {
+            report = JSON.parse(rawReport);
+          } catch (error) {
+            output.textContent = `report.json 解析失败：${error.message}`;
+            return;
+          }
+        }
+
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: 'load-structure',
+              structure,
+              report
+            }
+          },
+          '*'
+        );
+      };
+
+      const loadSampleData = () => {
+        structureInput.value = JSON.stringify(SAMPLE_STRUCTURE, null, 2);
+        reportInput.value = JSON.stringify(SAMPLE_REPORT, null, 2);
+        output.textContent = '已载入示例 JSON，点击“应用 JSON”发送给插件主线程。';
+      };
+
+      const rebuildSections = () => {
+        if (!state.structure) {
+          output.textContent = '请先应用 structure.json。';
+          return;
+        }
+
+        if (state.selectedSectionIds.size === 0) {
+          output.textContent = '请至少勾选一个 section。';
+          return;
+        }
+
+        setBusy(true);
+        output.textContent = '正在发送重建请求…';
+
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: 'rebuild-sections',
+              documentId: state.structure.documentId,
+              sections: [...state.selectedSectionIds],
+              options: {
+                insertMode: insertMode.value,
+                backgroundMode: 'frame-fill-placeholder'
+              }
+            }
+          },
+          '*'
+        );
+      };
+
+      loadSampleButton.addEventListener('click', loadSampleData);
+      applyStructureButton.addEventListener('click', applyLoadedData);
+      rebuildButton.addEventListener('click', rebuildSections);
+      cancelButton.addEventListener('click', () => {
+        parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+      });
+      selectAllButton.addEventListener('click', () => {
+        if (!state.structure) {
+          return;
+        }
+        state.selectedSectionIds = new Set(state.structure.sections.map((section) => section.id));
+        renderSections();
+      });
+      clearAllButton.addEventListener('click', () => {
+        state.selectedSectionIds = new Set();
+        renderSections();
+      });
+
+      window.onmessage = (event) => {
+        const message = event.data.pluginMessage;
+        if (!message) {
+          return;
+        }
+
+        if (message.type === 'bootstrap') {
+          state.page = message.page;
+          bootstrap.textContent = `当前页面：${message.page.name}`;
+          return;
+        }
+
+        if (message.type === 'structure-accepted') {
+          state.structure = JSON.parse(structureInput.value);
+          state.report = reportInput.value.trim() ? JSON.parse(reportInput.value) : null;
+          state.selectedSectionIds = new Set(state.structure.sections.map((section) => section.id));
+          renderSections();
+          output.textContent = message.warnings && message.warnings.length
+            ? `已载入 structure.json，但有警告：\n- ${message.warnings.join('\n- ')}`
+            : `已载入 ${message.sectionCount} 个 sections。`;
+          return;
+        }
+
+        if (message.type === 'rebuild-progress') {
+          output.textContent = `正在重建 ${message.current}/${message.total}：${message.sectionId}`;
+          return;
+        }
+
+        if (message.type === 'rebuild-result') {
+          setBusy(false);
+          output.textContent = message.ok
+            ? `重建完成，共创建 ${message.createdCount} 个 section。`
+            : `重建部分完成，共创建 ${message.createdCount} 个 section，失败 ${message.failed.length} 个。\n${JSON.stringify(message.failed, null, 2)}`;
+          return;
+        }
+
+        if (message.type === 'error') {
+          setBusy(false);
+          output.textContent = `${message.code}: ${message.message}`;
+        }
+      };
+
+      loadSampleData();
+      setBusy(false);
+      parent.postMessage({ pluginMessage: { type: 'request-bootstrap' } }, '*');
+    </script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "sectionNamePattern": "^section_notice_(\\d+)$",
+  "roleAliases": {
+    "background": ["background", "bg", "bg-main"],
+    "title": ["title", "heading"],
+    "body": ["body", "content"]
+  },
+  "defaults": {
+    "layoutKind": "text-in-background-block",
+    "responsive": true,
+    "fixedWidth": true,
+    "backgroundStrategy": "auto",
+    "contentDirection": "vertical"
+  }
+}
